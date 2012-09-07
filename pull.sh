@@ -24,7 +24,8 @@ BASE_SRC_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 BUILD_META_DIR=$BASE_SRC_DIR/build_meta
 BUILD_ODER_FILE=$BUILD_META_DIR/build_order
-BUILDSET_FILE=" "
+BUILDSET_FILE=""
+SYNC_TO_SHA="no"
 
 function print_usage {
   echo "Usage for $0"
@@ -33,6 +34,7 @@ function print_usage {
   echo "Options:"
   echo "-s, --buildset          Buildset file"
   echo "                            Defaults to default_buildset"
+  echo "    --sync              sync to sha1 specified in buildset"
 
   exit 1
 }
@@ -61,6 +63,10 @@ function process_arguments {
                 BUILDSET_FILE=$2
                 shift 2
                 ;;
+            --sync)
+                SYNC_TO_SHA="yes"
+                shift
+                ;;
             -h|--help)
                 print_usage
                 shift
@@ -87,6 +93,7 @@ function main {
         set -- $line
         local project_name=$1
         local project_url=$2
+        local project_sha=$3
 
         if [ ! -d $project_name ] && [ -z $project_url ]; then
             echo "Continuing for $project_name"
@@ -103,11 +110,19 @@ function main {
                 cd $project_name
                 if [ -e .git ]; then
                     git pull --rebase
+                    if [[ $SYNC_TO_SHA == "yes" ]]; then
+                        git reset --hard $project_sha
+                    fi
                 fi
                 cd $BASE_SRC_DIR
             fi
         else
-            git clone $project_url
+            git clone $project_url $project_name
+            if [[ $SYNC_TO_SHA == "yes" ]]; then
+                cd $project_name
+                git reset --hard $project_sha
+                cd $BASE_SRC_DIR
+            fi
         fi
     done < $BUILDSET_FILE
 
