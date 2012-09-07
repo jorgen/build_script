@@ -1,0 +1,60 @@
+BUILD SCRIPT
+
+This is a collection of scripts which is very usefull when you want to build
+the QtWayland stack. 
+
+The end goal is to be able to build and install a stack into a directory
+automatically.
+
+The structure is fairly simple. The directory build_meta contains files which
+is used to deside build order and how projects are suppose to be built.
+
+The file build_meta/build_order dictates in what order the lines in a buildset
+file should be. This is the only place where this file is used. This means the
+only script that uses the build_order file is create_buildset.sh
+
+create_buildset.sh creates snapshot buildsets. Their produced when the build.sh
+script is run, and placed in the build_meta/buildsets/snapshots folder. These
+files are very usefull as a lookup to see what sha1's a specific build used.
+And their a complete buildset which can be used as input for build.sh and
+pull.sh
+
+pull.sh is a script that reads a buildset file and git clones or git pull
+--rebase repositories. Ie. if a directory with the name corresponding to the
+name collumn in a buildset file line, then it will try and pull. It it does not
+exist, it will try and clone the url for that line.
+
+build.sh takes a buildset and builds the projects defined in the buildset file
+in the order the file specifies them. build.sh has to take the argument -b
+which specifies the directory for where building should happen. It also can
+take the optioal argument -i which sets the prefix variable for the projects
+defined.
+
+Buildsets are picked up in the following order by pull.sh and build.sh: if the
+-s or --buildset argument is specified, it will try and find the file matching
+the argument. Files can be specified with full paths or relative paths.
+However, if no path is specified it will look in the directory
+"build_meta/buildsets/". If a buildset file is in the same directory as pull.sh
+or build.sh it can be specified as "-s ./buildset_file"
+
+The directory build_meta/build_functions contains files which are used to
+specialise how projects are built. The files have to have a corresponding
+filename to one of the project names specified in a buildset, ie. for project
+name "qtbase" the file must be called "build_qtbase.sh"
+
+These files are sourced by the build.sh script and the script will look for 3
+functions in the script:
+
+pre_$project
+build_$project
+post_$project
+
+To make a specific rutine for how qtbase is built a file called
+"build_qtbase.sh" has to be defined in the folder "build_mate/build_functions"
+containing the function "build_qtbase"
+
+These functions are called with the current directory set to the directory
+where the project is suppose to be built. The first argument to the function is
+the projects source directory and the second argument is the install directory
+
+The purpose of the build_script project is not to be a complete replacement for fullstack build environments, but to make it easier to setup a development environment 

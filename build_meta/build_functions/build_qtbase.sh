@@ -57,7 +57,10 @@ function build_qtbase {
             -developer-build \
             -prefix $project_install_dir \
             -opengl $__QT_BASE_FORCE_OPENGL_ES \
-            -opensource -confirm-license
+            -nomake tests \
+            -opensource \
+            -confirm-license
+
         if [[ $? != 0 ]]; then
             return 2
         fi
