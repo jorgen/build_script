@@ -1,8 +1,0 @@
-qtbase              ssh://codereview.qt-project.org:29418/qt/qtbase.git                             
-qtdeclarative       ssh://codereview.qt-project.org:29418/qt/qtdeclarative.git                      
-qtjsbackend         ssh://codereview.qt-project.org:29418/qt/qtjsbackend.git                        
-some_special                                                                                        
-qtquick1            ssh://codereview.qt-project.org:29418/qt/qtquick1.git                           
-qtscript            ssh://codereview.qt-project.org:29418/qt/qtscript.git                           
-qtwayland           ssh://codereview.qt-project.org:29418/qt/qtwayland.git                          
-qtxmlpatterns       ssh://codereview.qt-project.org:29418/qt/qtxmlpatterns.git                      

@@ -1,0 +1,6 @@
+#Name               Url                                                                             SHA1                    
+wayland             git://anongit.freedesktop.org/wayland/wayland                                   2be6e0ed142bac669398a9ad26d336666fa53216
+qtbase              ssh://codereview.qt-project.org:29418/qt/qtbase.git                             903903147924641a84e62432037b006c6bf541b7
+qtjsbackend         ssh://codereview.qt-project.org:29418/qt/qtjsbackend.git                        9b632047874f6cc9f23520d2fcdb566bed230a97
+qtdeclarative       ssh://codereview.qt-project.org:29418/qt/qtdeclarative.git                      ba855463ab800c194ae581545535b46d5975bbb1
+qtwayland           ssh://codereview.qt-project.org:29418/qt/qtwayland.git                          ac763c7998447b62c8d282419e862b12d26909d9
