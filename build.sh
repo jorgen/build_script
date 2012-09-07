@@ -1,5 +1,25 @@
 #!/bin/bash
 
+#**************************************************************************************************
+# Copyright (c) 2012 Jørgen Lind
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+# associated documentation files (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge, publish, distribute,
+# sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all copies or
+# substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+# NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+# DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+# OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#
+#**************************************************************************************************/
+
 BASE_SRC_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 BASE_META_DIR=$BASE_SRC_DIR/build_meta
 
@@ -140,34 +160,10 @@ function set_global_variables {
 
     BUILD_ODER_FILE=$BASE_META_DIR/build_order
 
-    if [ -z $BUILDSET_FILE ]; then
-        BUILDSET_FILE="$BASE_META_DIR/buildsets/default_buildset"
-    fi
+    source "$BUILD_META_DIR/functions/find_buildset_file.sh"
+    resolve_buildset_file $BASE_SRC_DIR $BUILDSET_FILE BUILDSET_FILE
+    echo $BUILDSET_FILE
 
-    if [[ $BUILDSET_FILE == \.* ]]; then
-        #relative path
-        local path_to_buildset_file=$(dirname $BASE_SRC_DIR/$BUILDSET_FILE)
-        if [ ! -e $path_to_buildset_file ]; then
-            echo "The relative path specified $path_to_buildset_file does not exist"
-            exit
-        fi
-        cd $path_to_buildset_file
-        path_to_buildset_file=$(pwd)
-        cd -
-        local filename_to_buildset_file=$(basename $BASE_SRC_DIR/$BUILDSET_FILE)
-        BUILDSET_FILE="$path_to_buildset_file/$filename_to_buildset_file"
-    elif [[ $BUILDSET_FILE == \/* ]]; then
-        #full path
-        BUILDSET_FILE="$BUILDSET_FILE"
-    else
-        #look in the buildsets folder
-        BUILDSET_FILE="$BASE_META_DIR/buildsets/$BUILDSET_FILE"
-    fi
-
-    if [ ! -e "$BUILDSET_FILE" ]; then
-        echo "The buildset file: $BUILDSET_FILE does not exist"
-        exit
-    fi
 
     echo "#!/bin/bash" > $BASE_BUILD_DIR/build_and_run_env.sh
     echo "export LD_LIBRARY_PATH=$BASE_INSTALL_DIR/lib" >> $BASE_BUILD_DIR/build_and_run_env.sh
@@ -229,8 +225,8 @@ function main {
             exit 1
         fi
         
-        if [ -e $BASE_META_DIR/build_$project.sh ]; then
-            source $BASE_META_DIR/build_$project.sh
+        if [ -e $BASE_META_DIR/build_functions/build_$project.sh ]; then
+            source $BASE_META_DIR/build_functions/build_$project.sh
         fi
         
         cd $BASE_BUILD_DIR
@@ -244,7 +240,7 @@ function main {
             mkdir -p $project_build_dir
         fi
 
-        if [ "$(type -t prepare_$project)" == "function" ]; then
+        if [ "$(type -t pre_$project)" == "function" ]; then
             cd $project_build_dir
             prepare_$project $project_source_dir $project_install_dir result
         else
@@ -289,7 +285,7 @@ function main {
         local project_build_dir=$BASE_BUILD_DIR/$project
         local project_install_dir=$BASE_INSTALL_DIR
 
-        cd $project_source_dir
+        cd $project_build_dir
         if [ "$(type -t build_$project)" == "function" ]; then
             build_$project $project_source_dir $project_install_dir result
         else
@@ -299,6 +295,33 @@ function main {
 
         if [[ $result < 0 ]]; then
             echo "Build failed at: $project"
+            exit 1
+        fi
+    done < $BUILDSET_FILE 
+    
+    while read line; do
+        if [[ $line == \#* ]] ; then
+            continue
+        fi
+
+        set -- $line
+     
+        local project=$1
+
+        local project_source_dir=$BASE_SRC_DIR/$project
+        local project_build_dir=$BASE_BUILD_DIR/$project
+        local project_install_dir=$BASE_INSTALL_DIR
+
+        if [ "$(type -t post_$project)" == "function" ]; then
+            cd $project_build_dir
+            post_$project $project_source_dir $project_install_dir result
+            cd $BASE_SRC_DIR
+        else
+            result=0
+        fi
+
+        if [[ $result < 0 ]]; then
+            echo "Post failed at: $project"
             exit 1
         fi
     done < $BUILDSET_FILE 

@@ -1,27 +1,107 @@
 #!/bin/bash
 
+#**************************************************************************************************
+# Copyright (c) 2012 Jørgen Lind
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+# associated documentation files (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge, publish, distribute,
+# sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all copies or
+# substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+# NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+# DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+# OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+#
+#**************************************************************************************************/
+
 BASE_SRC_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 BUILD_META_DIR=$BASE_SRC_DIR/build_meta
 BUILD_ODER_FILE=$BUILD_META_DIR/build_order
-BUILD_REPO_FILE=$BUILD_META_DIR/build_repos
+BUILDSET_FILE=" "
 
-while read line; do
-    if [[ $line == \#* ]]; then
-        continue
-    fi
-    set -- $line
-    project_name=$1
-    project_url=$2
+function print_usage {
+  echo "Usage for $0"
+  echo " $0 [options] -b directory"
+  echo ""
+  echo "Options:"
+  echo "-s, --buildset          Buildset file"
+  echo "                            Defaults to default_buildset"
 
-    if [ ! -d $project_name ] || [ -z $project_url ]; then
-        echo "Continuing for $project_name"
-        continue
-    fi
-    cd $project_name
-    if [ -e .git ]; then
-        git pull --rebase
-    fi
-    cd $BASE_SRC_DIR
-done < $BUILD_REPO_FILE 
+  exit 1
+}
 
+function print_missing_argument {
+    echo ""
+    echo "Missing argument for $1"
+    echo ""
+    print_usage
+}
+
+function print_unknown_argument {
+    echo ""
+    echo "Unknown argument: $1"
+    echo ""
+    print_usage
+}
+
+function process_arguments {
+    while [ ! -z $1 ]; do
+        case "$1" in
+            -s|--buildset)
+                if [ -z $2 ]; then
+                    print_missing_argument $1
+                fi
+                BUILDSET_FILE=$2
+                shift 2
+                ;;
+            -h|--help)
+                print_usage
+                shift
+                ;;
+            *)
+                print_unknown_argument $1
+                shift
+                ;;
+        esac
+    done
+}
+
+function set_global_variables {
+    source "$BUILD_META_DIR/functions/find_buildset_file.sh"
+    resolve_buildset_file $BASE_SRC_DIR $BUILDSET_FILE BUILDSET_FILE
+}
+
+function main {
+    while read line; do
+        if [[ $line == \#* ]]; then
+            continue
+        fi
+        set -- $line
+        local project_name=$1
+        local project_url=$2
+
+        if [ ! -d $project_name ] || [ -z $project_url ]; then
+            echo "Continuing for $project_name"
+            continue
+        fi
+        echo "Processing $project_name"
+        cd $project_name
+        if [ -e .git ]; then
+            git pull --rebase
+        fi
+        cd $BASE_SRC_DIR
+    done < $BUILDSET_FILE
+
+    ln -s $BUILDSET_FILE $BASE_SRC_DIR/current_buildset
+}
+
+process_arguments $@
+set_global_variables
+main
