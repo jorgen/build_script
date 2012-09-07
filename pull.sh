@@ -75,7 +75,8 @@ function process_arguments {
 
 function set_global_variables {
     source "$BUILD_META_DIR/functions/find_buildset_file.sh"
-    resolve_buildset_file $BASE_SRC_DIR $BUILDSET_FILE BUILDSET_FILE
+    BUILDSET_FILE=$(resolve_buildset_file $BASE_SRC_DIR $BUILDSET_FILE)
+    echo "Using buildset $BUILDSET_FILE"
 }
 
 function main {

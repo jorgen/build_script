@@ -20,38 +20,56 @@
 #
 #**************************************************************************************************/
 
+__QT_BASE_FORCE_OPENGL_ES=""
+
+function pre_qtbase {
+    while true; do
+        read -p "Force OpenGL ES2 compatibillity for QtGui? [N/y]: " force_es2 < /dev/tty
+        force_es2=${force_es2:-N}
+        case "$force_es2" in
+            Y|y)
+                __QT_BASE_FORCE_OPENGL_ES="es2"
+                break
+                ;;
+            N|n)
+                __QT_BASE_FORCE_OPENGL_ES=""
+                break
+                ;;
+            *)
+                echo "Please specify Y or N"
+                ;;
+        esac
+    done
+
+}
+
 function build_qtbase {
     local project_source_dir=$1
     local project_install_dir=$2
-    local __resultvar=$3
-    local to_return="0"
 
     if [ ! -e $project_source_dir/configure ]; then
-        to_return="-1"
+        return 1
     fi
 
-    if [[ $to_return == "0" ]] && [ ! -e Makefile ]; then
+    if [ ! -e Makefile ]; then
         echo "Executing QTBASE"
-        $project_source_dir/configure -developer-build -prefix $project_install_dir -opengl es2 -opensource -confirm-license
+        $project_source_dir/configure \
+            -developer-build \
+            -prefix $project_install_dir \
+            -opengl $__QT_BASE_FORCE_OPENGL_ES \
+            -opensource -confirm-license
         if [[ $? != 0 ]]; then
-            to_return="-1"
+            return 2
         fi
     fi
 
-
-    if [[ $to_return == "0" ]]; then
-        make
-        if [[ $? != 0 ]]; then
-            to_return="-2"
-        fi
+    make
+    if [[ $? != 0 ]]; then
+        return 3
     fi
 
-    if [[ $to_return == "0" ]]; then
-        make install
-        if [[ $? != 0 ]]; then
-            to_return="-3"
-        fi
+    make install
+    if [[ $? != 0 ]]; then
+        return 4
     fi
-
-    eval $__resultvar="'$to_return'"
 }

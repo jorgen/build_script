@@ -51,7 +51,7 @@ function print_unknown_argument {
 while [ ! -z $1 ]; do
     case "$1" in
     --build-name)
-        if [ -z $2 ]; then
+        if [[ $2 == "" ]]; then
             print_missing_argument $1
         fi
         BUILD_NAME=$2
@@ -79,7 +79,7 @@ if [ -e $BUILD_SET_FILE ]; then
     rm $BUILD_SET_FILE
 fi
 
-if [ ! -z $BUILD_NAME ]; then
+if [[ $BUILD_NAME != "" ]]; then
     echo "# $BUILD_NAME" >> $BUILD_SET_FILE
 fi
 printf "%-20s%-80s%-24s\n" "# Name" "Url" "SHA1" >> $BUILD_SET_FILE

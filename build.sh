@@ -160,9 +160,9 @@ function set_global_variables {
 
     BUILD_ODER_FILE=$BASE_META_DIR/build_order
 
-    source "$BUILD_META_DIR/functions/find_buildset_file.sh"
-    resolve_buildset_file $BASE_SRC_DIR $BUILDSET_FILE BUILDSET_FILE
-    echo $BUILDSET_FILE
+    source "$BASE_META_DIR/functions/find_buildset_file.sh"
+    BUILDSET_FILE=$(resolve_buildset_file $BASE_SRC_DIR $BUILDSET_FILE)
+    echo "Using buildset file: $BUILDSET_FILE"
 
 
     echo "#!/bin/bash" > $BASE_BUILD_DIR/build_and_run_env.sh
@@ -175,7 +175,7 @@ function set_global_variables {
         print_usage
     fi
 
-    source build_and_run_env.sh
+    source $BASE_BUILD_DIR/build_and_run_env.sh
 }
 
 function set_make_flags {
@@ -195,12 +195,17 @@ function find_qmake {
 
 function main {
 
-    $BASE_SRC_DIR/create_buildset.sh --build-name "Build dir: $BASE_BUILD_DIR Install dir: $BASE_INSTALL_DIR"
+    create_buildset_arg="Build dir: $BASE_BUILD_DIR Install dir $BASE_INSTALL_DIR"
+    $BASE_SRC_DIR/create_buildset.sh --build-name "$create_buildset_arg"
+    if [[ $? != 0 ]]; then
+        echo "Failed to create snapshot"
+        exit 1
+    fi
 
     set_make_flags
 
-    if [ -e $BASE_META_DIR/build_default.sh ]; then
-        source $BASE_META_DIR/build_default.sh
+    if [ -e $BASE_META_DIR/build_functions/build_default.sh ]; then
+        source $BASE_META_DIR/build_functions/build_default.sh
     else
         echo "Missing $BASE_META_DIR/build_default.sh"
         exit 1
@@ -242,14 +247,11 @@ function main {
 
         if [ "$(type -t pre_$project)" == "function" ]; then
             cd $project_build_dir
-            prepare_$project $project_source_dir $project_install_dir result
-        else
-            result=0
-        fi
-
-        if [[ $result < 0 ]]; then
-            echo "prepare for $project failed"
-            exit 1
+            pre_$project $project_source_dir $project_install_dir
+            if [[ $? != 0 ]]; then
+                echo "prepare for $project failed"
+                exit
+            fi
         fi
 
     done < $BUILDSET_FILE 
@@ -287,16 +289,17 @@ function main {
 
         cd $project_build_dir
         if [ "$(type -t build_$project)" == "function" ]; then
-            build_$project $project_source_dir $project_install_dir result
+            build_$project $project_source_dir $project_install_dir
         else
-            build_default $project_source_dir $project_install_dir result
+            build_default $project_source_dir $project_install_dir
         fi
-        cd $BASE_SRC_DIR
 
-        if [[ $result < 0 ]]; then
+        if [[ $? != 0 ]]; then
             echo "Build failed at: $project"
             exit 1
         fi
+        
+        cd $BASE_SRC_DIR
     done < $BUILDSET_FILE 
     
     while read line; do
@@ -314,16 +317,16 @@ function main {
 
         if [ "$(type -t post_$project)" == "function" ]; then
             cd $project_build_dir
-            post_$project $project_source_dir $project_install_dir result
+            
+            post_$project $project_source_dir $project_install_dir
+            if [[ $? != 0 ]]; then
+                echo "Post failed at: $project"
+                exit 1
+            fi
+
             cd $BASE_SRC_DIR
-        else
-            result=0
         fi
 
-        if [[ $result < 0 ]]; then
-            echo "Post failed at: $project"
-            exit 1
-        fi
     done < $BUILDSET_FILE 
 }
 

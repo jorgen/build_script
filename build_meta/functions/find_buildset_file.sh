@@ -22,14 +22,7 @@
 
 function resolve_buildset_file {
     local base_src_dir=$1
-    local build_set_file=""
-    local __resolve_buildset_result_var=""
-    if [ -z $3 ]; then
-        __resolve_buildset_result_var=$2
-    else
-        build_set_file=$2
-        __resolve_buildset_result_var=$3
-    fi
+    local build_set_file=$2
 
     if [[ $build_set_file == \.* ]]; then
         #relative path
@@ -70,7 +63,5 @@ function resolve_buildset_file {
         build_set_file=$(readlink $build_set_file)
     fi
 
-    echo "Using buildset $build_set_file"
-
-    eval $__resolve_buildset_result_var="'$build_set_file'"
+    echo "$build_set_file"
 }
