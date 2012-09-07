@@ -87,19 +87,30 @@ function main {
         local project_name=$1
         local project_url=$2
 
-        if [ ! -d $project_name ] || [ -z $project_url ]; then
+        if [ ! -d $project_name ] && [ -z $project_url ]; then
             echo "Continuing for $project_name"
             continue
         fi
+
         echo "Processing $project_name"
-        cd $project_name
-        if [ -e .git ]; then
-            git pull --rebase
+
+        if [ -e $project_name ]; then
+            if [ ! -d $project_name ]; then
+                echo "File $project_name exists and conflicts with git clone target"
+                exit 1
+            else
+                cd $project_name
+                if [ -e .git ]; then
+                    git pull --rebase
+                fi
+                cd $BASE_SRC_DIR
+            fi
+        else
+            git clone $project_url
         fi
-        cd $BASE_SRC_DIR
     done < $BUILDSET_FILE
 
-    ln -s $BUILDSET_FILE $BASE_SRC_DIR/current_buildset
+    ln -sf $BUILDSET_FILE $BASE_SRC_DIR/current_buildset
 }
 
 process_arguments $@

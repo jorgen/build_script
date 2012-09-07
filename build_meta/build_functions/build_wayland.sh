@@ -26,7 +26,9 @@ function post_wayland {
     local __resultvar=$3
     local to_return="0"
 
-    echo "export ACLOCAL=aclocal -I $project_install_dir/share/aclocal" >> build_and_run_env.sh
+    export_aclocal="export ACLOCAL=aclocal -I $project_install_dir/share/aclocal"
+    echo $export_aclocal >> build_and_run_env.sh
+    eval $export_aclocal
     
     eval $__resultvar="'$to_return'"
 }
