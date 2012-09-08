@@ -32,6 +32,10 @@ BUILDSET_FILE=""
 WIPE_PROJECTS="no"
 WIPE_INSTALL="no"
 
+RUN_PRE_ROUTINE="yes"
+RUN_BUILD_ROUTINE="yes"
+RUN_POST_ROUTINE="yes"
+
 function print_usage {
   echo "Usage for $0"
   echo " $0 [options] -b directory"
@@ -44,6 +48,9 @@ function print_usage {
   echo "                            Defaults to default_buildset"
   echo "-w, --wipe              Remove build directories before building"
   echo "    --wipe-install      Remove install dir"
+  echo "    --skip-pre          Skip pre routine"
+  echo "    --skip-build        Skip build routine"
+  echo "    --skip-post         Skip post routine"
   echo "-h, --help              Print this message"
   echo ""
 
@@ -96,6 +103,18 @@ function process_arguments {
                 BASE_INSTALL_DIR=$2
                 shift 2
                 ;;
+            --skip-pre)
+                RUN_PRE_ROUTINE="no"
+                shift
+                ;;
+            --skip-build)
+                RUN_BUILD_ROUTINE="no"
+                shift
+                ;;
+            --skip-post)
+                RUN_POST_ROUTINE="no"
+                shift
+                ;;
             -h|--help)
                 print_usage
                 shift
@@ -121,7 +140,7 @@ function check_and_create_directory {
         echo "Conflicting file for dir $1"
         print_usage
     fi
-    
+
     local current_dir=$(pwd)
     cd $1
     echo "$(pwd)"
@@ -187,7 +206,7 @@ function set_make_flags {
 
 function find_qmake {
     local project_install_dir=$1
-    
+
     if [ -e $project_install_dir/bin/qmake ]; then
         echo "$project_install_dir/bin/qmake"
     fi
@@ -217,7 +236,7 @@ function main {
         fi
 
         set -- $line
-     
+
         local project=$1
 
         local project_source_dir=$BASE_SRC_DIR/$project
@@ -245,12 +264,14 @@ function main {
             mkdir -p $project_build_dir
         fi
 
-        if [ "$(type -t pre_$project)" == "function" ]; then
-            cd $project_build_dir
-            pre_$project $project_source_dir $project_install_dir
-            if [[ $? != 0 ]]; then
-                echo "prepare for $project failed"
-                exit
+        if [[ $RUN_PRE_ROUTINE == "yes" ]]; then
+            if [ "$(type -t pre_$project)" == "function" ]; then
+                cd $project_build_dir
+                pre_$project $project_source_dir $project_install_dir
+                if [[ $? != 0 ]]; then
+                    echo "prepare for $project failed"
+                    exit
+                fi
             fi
         fi
 
@@ -263,7 +284,7 @@ function main {
             fi
 
             set -- $line
-         
+
             local project=$1
 
             local project_build_dir=$BASE_BUILD_DIR/$project
@@ -280,26 +301,29 @@ function main {
         fi
 
         set -- $line
-     
+
         local project=$1
 
         local project_source_dir=$BASE_SRC_DIR/$project
         local project_build_dir=$BASE_BUILD_DIR/$project
         local project_install_dir=$BASE_INSTALL_DIR
 
-        cd $project_build_dir
-        if [ "$(type -t build_$project)" == "function" ]; then
-            build_$project $project_source_dir $project_install_dir
-        else
-            build_default $project_source_dir $project_install_dir
+        if [[ $RUN_BUILD_ROUTINE == "yes" ]]; then
+            cd $project_build_dir
+            if [ "$(type -t build_$project)" == "function" ]; then
+                build_$project $project_source_dir $project_install_dir
+            else
+                build_default $project_source_dir $project_install_dir
+            fi
+
+            if [[ $? != 0 ]]; then
+                echo "Build failed at: $project"
+                exit 1
+            fi
+
+            cd $BASE_SRC_DIR
         fi
 
-        if [[ $? != 0 ]]; then
-            echo "Build failed at: $project"
-            exit 1
-        fi
-        
-        cd $BASE_SRC_DIR
     done < $BUILDSET_FILE 
     
     while read line; do
@@ -308,23 +332,25 @@ function main {
         fi
 
         set -- $line
-     
+
         local project=$1
 
         local project_source_dir=$BASE_SRC_DIR/$project
         local project_build_dir=$BASE_BUILD_DIR/$project
         local project_install_dir=$BASE_INSTALL_DIR
 
-        if [ "$(type -t post_$project)" == "function" ]; then
-            cd $project_build_dir
-            
-            post_$project $project_source_dir $project_install_dir
-            if [[ $? != 0 ]]; then
-                echo "Post failed at: $project"
-                exit 1
-            fi
+        if [[ $RUN_POST_ROUTINE == "yes" ]]; then
+            if [ "$(type -t post_$project)" == "function" ]; then
+                cd $project_build_dir
 
-            cd $BASE_SRC_DIR
+                post_$project $project_source_dir $project_install_dir
+                if [[ $? != 0 ]]; then
+                    echo "Post failed at: $project"
+                    exit 1
+                fi
+
+                cd $BASE_SRC_DIR
+            fi
         fi
 
     done < $BUILDSET_FILE 

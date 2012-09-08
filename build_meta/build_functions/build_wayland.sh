@@ -24,7 +24,7 @@ function post_wayland {
     local project_source_dir=$1
     local project_install_dir=$2
 
-    export_aclocal="export ACLOCAL=aclocal -I $project_install_dir/share/aclocal"
-    echo $export_aclocal >> build_and_run_env.sh
+    export_aclocal='export ACLOCAL="aclocal -I $project_install_dir/share/aclocal"'
+    echo $export_aclocal >> ../build_and_run_env.sh
     eval $export_aclocal
 }
