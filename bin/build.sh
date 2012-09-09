@@ -20,9 +20,16 @@
 #
 #**************************************************************************************************/
 
-BASE_SRC_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-BASE_META_DIR=$BASE_SRC_DIR/build_meta
+REAL_SCRIPT_FILE=${BASH_SOURCE[0]}
+if [ -L ${BASH_SOURCE[0]} ]; then
+    REAL_SCRIPT_FILE=$(readlink ${BASH_SOURCE[0]})
+fi
+   
+BASE_SCRIPT_DIR="$( dirname "$( cd "$( dirname "$REAL_SCRIPT_FILE" )" && pwd )")"
 
+BASE_META_DIR=$BASE_SCRIPT_DIR/build_meta
+
+BASE_SRC_DIR=""
 BASE_BUILD_DIR=""
 BASE_INSTALL_DIR=""
 
@@ -38,13 +45,15 @@ RUN_POST_ROUTINE="yes"
 
 function print_usage {
   echo "Usage for $0"
-  echo " $0 [options] -b directory"
+  echo " $0 [options] -s directory"
   echo ""
   echo "Options:"
-  echo "-b, --build-dir         Directory for building projects (REQUIRED)"
+  echo "-s, --src-dir           Source dir (REQUIRED)"
+  echo "-b, --build-dir         Directory for building projects"
+  echo "                            Defaults to src-dir"
   echo "-i, --install-dir       Directory where projects will be installed"
   echo "                            Defaults to build-dir"
-  echo "-s, --buildset          Buildset file"
+  echo "-f, --buildset          Buildset file"
   echo "                            Defaults to default_buildset"
   echo "-w, --wipe              Remove build directories before building"
   echo "    --wipe-install      Remove install dir"
@@ -82,6 +91,14 @@ function process_arguments {
                 WIPE_INSTALL="yes"
                 shift
                 ;;
+            -s|--src-dir)
+                if [ -z $2 ]; then
+                    print_missing_argument $1
+                fi
+                echo "SETTING BASE SRC DIR to $2"
+                BASE_SRC_DIR=$2
+                shift 2
+                ;;
             -b|--build-dir)
                 if [ -z $2 ]; then
                     print_missing_argument $1
@@ -89,7 +106,7 @@ function process_arguments {
                 BASE_BUILD_DIR=$2
                 shift 2
                 ;;
-            -s|--buildset)
+            -f|--buildset)
                 if [ -z $2 ]; then
                     print_missing_argument $1
                 fi
@@ -141,31 +158,40 @@ function check_and_create_directory {
         print_usage
     fi
 
-    local current_dir=$(pwd)
-    cd $1
-    echo "$(pwd)"
-    cd $current_dir
+    local dir="$( cd $1 && pwd )"
 
     if [[ $? != 0 ]]; then
         echo "faild to create directory $1"
         exit
     fi
+
+    echo "$dir"
 }
 
 function set_global_variables {
-    if [ -z $BASE_BUILD_DIR ]; then
-        echo ""
+    if [[ $BASE_SRC_DIR == "" ]]; then
+        echo "$BASE_SRC_DIR"
         echo "********************************"
-        echo "Please specify a build directory"
+        echo "Please specify a src directory"
         echo "********************************"
         echo ""
         print_usage
+    elif [ ! -e $BASE_SRC_DIR ]; then
+        echo ""
+        echo "Specified srd-dir '$BASE_BUILD_DIR' does not exist"
+        print_usage
+    fi
+    BASE_SRC_DIR="$( cd $BASE_SRC_DIR && pwd)"
+    
+    if [ -z $BASE_BUILD_DIR ]; then
+        BASE_BUILD_DIR=$BASE_SRC_DIR
     else
         BASE_BUILD_DIR=$(check_and_create_directory $BASE_BUILD_DIR)
         if [[ $BASE_BUILD_DIR == $BASE_META_DIR ]]; then
             echo "Build dir $BASE_BUILD_DIR is an illigal build dir"
         fi
     fi
+   
     if [ -z $BASE_INSTALL_DIR ]; then
         BASE_INSTALL_DIR=$BASE_BUILD_DIR
     else
@@ -173,14 +199,19 @@ function set_global_variables {
     fi
 
     if [[ $WIPE_INSTALL == "yes" ]]; then
-        rm -rf $BASE_INSTALL_DIR
-        mkdir $BASE_INSTALL_DIR
+        if [[ $BASE_INSTALL_DIR == $BASE_SRC_DIR ]]; then
+            echo "Trying to wipe install dir, but its the same as the src dir"
+            exit 1
+        else 
+            rm -rf $BASE_INSTALL_DIR
+            mkdir $BASE_INSTALL_DIR
+        fi
     fi
 
     BUILD_ODER_FILE=$BASE_META_DIR/build_order
 
     source "$BASE_META_DIR/functions/find_buildset_file.sh"
-    BUILDSET_FILE=$(resolve_buildset_file $BASE_SRC_DIR $BUILDSET_FILE)
+    BUILDSET_FILE=$(resolve_buildset_file $BASE_SCRIPT_DIR $BUILDSET_FILE)
     echo "Using buildset file: $BUILDSET_FILE"
 
 
@@ -200,7 +231,9 @@ function set_global_variables {
 function set_make_flags {
     if [[ $MAKEFLAGS != *-j* ]]; then
         local number_of_processors=$(grep -e "processor[[:space:]]*: [0-9]*" /proc/cpuinfo | wc -l)
-        export MAKEFLAGS="$MAKEFLAGS -j$number_of_processors"
+        local export_makeflags='export MAKEFLAGS="$MAKEFLAGS -j$number_of_processors"'
+        echo $export_makeflags >> $BASE_BUILD_DIR/build_and_run_env.sh
+        eval $export_makeflags
     fi
 }
 
@@ -214,8 +247,8 @@ function find_qmake {
 
 function main {
 
-    create_buildset_arg="Build dir: $BASE_BUILD_DIR Install dir $BASE_INSTALL_DIR"
-    $BASE_SRC_DIR/create_buildset.sh --build-name "$create_buildset_arg"
+    create_buildset_arg="Src dir: $BASE_SRC_DIR Build dir: $BASE_BUILD_DIR Install dir $BASE_INSTALL_DIR"
+    $BASE_SCRIPT_DIR/bin/create_buildset.sh -s "$BASE_SRC_DIR" --build-name "$create_buildset_arg"
     if [[ $? != 0 ]]; then
         echo "Failed to create snapshot"
         exit 1
@@ -253,7 +286,6 @@ function main {
             source $BASE_META_DIR/build_functions/build_$project.sh
         fi
         
-        cd $BASE_BUILD_DIR
         if [ -e $project_build_dir ]; then
             if [ ! -d $project_build_dir ]; then
                 echo "Conflicting file! Build script wants to make " \
@@ -277,7 +309,7 @@ function main {
 
     done < $BUILDSET_FILE 
 
-    if [[ $WIPE_PROJECTS ]] ; then
+    if [[ $WIPE_PROJECTS == "yes" ]]; then
         while read line; do
             if [[ $line == \#* ]] ; then
                 continue
@@ -288,9 +320,21 @@ function main {
             local project=$1
 
             local project_build_dir=$BASE_BUILD_DIR/$project
-            if [ -e $project_build_dir ]; then
-                rm -rf $project_build_dir
-                mkdir $project_build_dir
+            if [[ $BASE_BUILD_DIR == $BASE_SRC_DIR ]]; then
+                if [ -e $project_build_dir/.git ]; then
+                    $( cd $project_build_dir && git clean -xdfq )
+                elif [ -e $project_build_dir/Makefile ]; then
+                    $( cd $project_build_dir && make clean )
+                else
+                    echo "Dont know how to clean build directory $project_build_dir"
+                    echo "Its a in src build and it doesn't have a git repo nor a Makefile"
+                    exit 1;
+                fi
+            else 
+                if [ -e $project_build_dir ]; then
+                    rm -rf $project_build_dir
+                    mkdir $project_build_dir
+                fi
             fi
         done < $BUILDSET_FILE 
     fi
@@ -320,8 +364,6 @@ function main {
                 echo "Build failed at: $project"
                 exit 1
             fi
-
-            cd $BASE_SRC_DIR
         fi
 
     done < $BUILDSET_FILE 
@@ -349,7 +391,6 @@ function main {
                     exit 1
                 fi
 
-                cd $BASE_SRC_DIR
             fi
         fi
 
