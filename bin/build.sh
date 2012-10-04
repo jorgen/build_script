@@ -43,6 +43,8 @@ RUN_PRE_ROUTINE="yes"
 RUN_BUILD_ROUTINE="yes"
 RUN_POST_ROUTINE="yes"
 
+PLATFORM_OS="linux"
+
 function print_usage {
   echo "Usage for $0"
   echo " $0 [options] -s directory"
@@ -226,14 +228,28 @@ function set_global_variables {
     fi
 
     source $BASE_BUILD_DIR/build_and_run_env.sh
+
+    platform_name=$(uname | tr '[A-Z]' '[a-z]')
+    if [[ $platform_name == "*bad" || $platform_name == "darwin" ]]; then
+        PLATFORM_OS="bsd"
+    fi
 }
 
 function set_make_flags {
     if [[ $MAKEFLAGS != *-j* ]]; then
-        local number_of_processors=$(grep -e "processor[[:space:]]*: [0-9]*" /proc/cpuinfo | wc -l)
-        local export_makeflags='export MAKEFLAGS="$MAKEFLAGS -j$number_of_processors"'
-        echo $export_makeflags >> $BASE_BUILD_DIR/build_and_run_env.sh
-        eval $export_makeflags
+        local found_makeflags=0
+        if [[ $PLATFORM_OS == "linux" ]]; then
+            local number_of_processors=$(grep -e "processor[[:space:]]*: [0-9]*" /proc/cpuinfo | wc -l)
+            found_makeflags=1
+        elif [[ $PLATFORM_OS == "bsd" ]]; then
+            local number_of_processors=$(sysctl hw.ncpu | awk '{print $2}')
+            found_makeflags=1
+        fi
+        if [ $found_makeflags -gt 0 ]; then 
+            local export_makeflags='export MAKEFLAGS="$MAKEFLAGS -j$number_of_processors"'
+            echo $export_makeflags >> $BASE_BUILD_DIR/build_and_run_env.sh
+            eval $export_makeflags
+        fi
     fi
 }
 
